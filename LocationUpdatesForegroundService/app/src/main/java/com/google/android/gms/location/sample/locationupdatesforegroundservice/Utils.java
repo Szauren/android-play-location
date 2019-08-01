@@ -27,6 +27,7 @@ import java.util.Date;
 class Utils {
 
     static final String KEY_REQUESTING_LOCATION_UPDATES = "requesting_locaction_updates";
+    static final String KEY_LOCATION_UPDATE_SERVICE_IS_FOREGROUND= "KEY_LOCATION_UPDATE_SERVICE_IS_FOREGROUND";
 
     /**
      * Returns true if requesting location updates, otherwise returns false.
@@ -36,6 +37,18 @@ class Utils {
     static boolean requestingLocationUpdates(Context context) {
         return PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean(KEY_REQUESTING_LOCATION_UPDATES, false);
+    }
+
+    static boolean shouldLocationUpdateServiceBeForeground(Context context) {
+        return PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(KEY_LOCATION_UPDATE_SERVICE_IS_FOREGROUND, true);
+    }
+
+    static void setLocationUpdateServiceInForeground(Context context, boolean shouldBeInForeground) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putBoolean(KEY_LOCATION_UPDATE_SERVICE_IS_FOREGROUND, shouldBeInForeground)
+                .apply();
     }
 
     /**

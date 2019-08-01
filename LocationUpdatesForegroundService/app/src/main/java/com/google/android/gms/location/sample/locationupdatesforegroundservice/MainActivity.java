@@ -1,12 +1,12 @@
 /**
  * Copyright 2017 Google Inc. All Rights Reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,6 +16,7 @@
 
 package com.google.android.gms.location.sample.locationupdatesforegroundservice;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -23,28 +24,27 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
-import android.location.Location;
-import android.os.IBinder;
-import android.preference.PreferenceManager;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import androidx.appcompat.app.AppCompatActivity;
-import android.os.Bundle;
-import android.util.Log;
-
-import android.Manifest;
-
 import android.content.pm.PackageManager;
-
+import android.location.Location;
 import android.net.Uri;
-
+import android.os.Bundle;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
-import androidx.annotation.NonNull;
-import com.google.android.material.snackbar.Snackbar;
-import androidx.core.app.ActivityCompat;
-
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
+
+import com.google.android.material.snackbar.Snackbar;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 /**
  * The only activity in this sample.
@@ -101,6 +101,8 @@ public class MainActivity extends AppCompatActivity implements
     private Button mRequestLocationUpdatesButton;
     private Button mRemoveLocationUpdatesButton;
 
+    private boolean mUseDiffrentForegroundService = true;
+
     // Monitors the state of the connection to the service.
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
@@ -117,6 +119,23 @@ public class MainActivity extends AppCompatActivity implements
             mBound = false;
         }
     };
+
+    private final ServiceConnection mServiceConnection2 = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mService2  = new Messenger(service);;
+            mBound2 = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mService2 = null;
+            mBound2 = false;
+        }
+    };
+    private Messenger mService2;
+    private boolean mBound2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,6 +167,14 @@ public class MainActivity extends AppCompatActivity implements
                     requestPermissions();
                 } else {
                     mService.requestLocationUpdates();
+                    if(mService2 != null) {
+                        Message msg = Message.obtain(null, ForegroundService.MSG_SAY_HELLO, 0, 0);
+                        try {
+                            mService2.send(msg);
+                        } catch (RemoteException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
         });
@@ -161,11 +188,16 @@ public class MainActivity extends AppCompatActivity implements
 
         // Restore the state of the buttons when the activity (re)launches.
         setButtonsState(Utils.requestingLocationUpdates(this));
-
+        Utils.setLocationUpdateServiceInForeground(this, !mUseDiffrentForegroundService);
         // Bind to the service. If the service is in foreground mode, this signals to the service
         // that since this activity is in the foreground, the service can exit foreground mode.
         bindService(new Intent(this, LocationUpdatesService.class), mServiceConnection,
                 Context.BIND_AUTO_CREATE);
+
+        if (mUseDiffrentForegroundService) {
+            bindService(new Intent(this, ForegroundService.class), mServiceConnection2,
+                    Context.BIND_AUTO_CREATE);
+        }
     }
 
     @Override
@@ -190,6 +222,14 @@ public class MainActivity extends AppCompatActivity implements
             unbindService(mServiceConnection);
             mBound = false;
         }
+
+        if (mBound2) {
+            // Unbind from the service. This signals to the service that this activity is no longer
+            // in the foreground, and the service can respond by promoting itself to a foreground
+            // service.
+            unbindService(mServiceConnection2);
+            mBound2 = false;
+        }
         PreferenceManager.getDefaultSharedPreferences(this)
                 .unregisterOnSharedPreferenceChangeListener(this);
         super.onStop();
@@ -199,7 +239,7 @@ public class MainActivity extends AppCompatActivity implements
      * Returns the current state of the permissions needed.
      */
     private boolean checkPermissions() {
-        return  PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
+        return PackageManager.PERMISSION_GRANTED == ActivityCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_FINE_LOCATION);
     }
 
